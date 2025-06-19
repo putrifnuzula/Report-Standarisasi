@@ -2,9 +2,7 @@ import pandas as pd
 import streamlit as st
 from io import BytesIO
 
-# ===================================
-# CLAIM DATA FUNCTIONS
-# ===================================
+# Claim data functions
 def filter_claim_data(df):
     df = df[df['ClaimStatus'] == 'R']
     return df
@@ -61,9 +59,7 @@ def move_to_claim_template(df):
     })
     return df_transformed
 
-# ===================================
-# BENEFIT DATA FUNCTIONS
-# ===================================
+# Benefit data functions:
 def filter_benefit_data(df):
     if 'Status Claim' in df.columns or 'Status_Claim' in df.columns:
         if 'Status_Claim' in df.columns:
@@ -71,7 +67,7 @@ def filter_benefit_data(df):
         else:
             df = df[df['Status Claim'] == 'R']
     else:
-        st.warning("⚠️ Column 'Status Claim' not found. Data not filtered.")
+        st.warning("Column 'Status Claim' not found. Data not filtered.")
     return df
 
 def move_to_benefit_template(df):
@@ -80,7 +76,7 @@ def move_to_benefit_template(df):
     for col in df.columns:
         if df[col].dtype == "object":
             df[col] = df[col].astype(str).str.strip()
-    # Rename Benefit columns according to the mapping
+    # Rename Benefit columns
     rename_mapping = {
         'ClientName': 'Client Name',
         'PolicyNo': 'Policy No',
@@ -107,22 +103,13 @@ def move_to_benefit_template(df):
     df = df.drop(columns=["Status_Claim", "BAmount"], errors='ignore')
     return df
 
-# ===================================
-# SAVE TO EXCEL FUNCTION
-# ===================================
+# Save to excel
 def save_to_excel(claim_df, benefit_df, summary_top_df, claim_ratio_df, filename):
-    """
-    Creates an Excel file with:
-      - Summary sheet: Writes summary statistics (without any header row) at the top,
-        then a blank row, then a horizontal Claim Ratio table with bold headers.
-      - SC sheet: Cleaned Claim data.
-      - Benefit sheet: Cleaned Benefit data.
-    """
     output = BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         workbook = writer.book
 
-        # ---- Write Summary sheet ----
+        # Summary Sheet:
         summary_sheet = workbook.add_worksheet("Summary")
         bold_format = workbook.add_format({'bold': True})
         
@@ -134,7 +121,7 @@ def save_to_excel(claim_df, benefit_df, summary_top_df, claim_ratio_df, filename
             summary_sheet.write(row, 1, data["Value"])
             row += 1
 
-        # Insert a blank row
+        # Insert a blank row (between sum stats and CR)
         row += 1
 
         # Write header for Claim Ratio table (horizontal layout)
@@ -154,17 +141,15 @@ def save_to_excel(claim_df, benefit_df, summary_top_df, claim_ratio_df, filename
                 col += 1
             row += 1
 
-        # ---- Write Claim data (SC) and Benefit sheets using pandas ----
+        # SC & Benefit sheets naming
         claim_df.to_excel(writer, index=False, sheet_name='SC')
         benefit_df.to_excel(writer, index=False, sheet_name='Benefit')
         writer.close()
     output.seek(0)
     return output, filename
 
-# ===================================
-# STREAMLIT APP UI
-# ===================================
-st.title("Integrated Claims, Claim Ratio, and Benefit Data Processor")
+# Streamlit app UI
+st.title("Template - Standardisasi Report")
 st.header("Upload Files")
 
 uploaded_claim = st.file_uploader("Upload Claim Data (.csv)", type=["csv"], key="claim")
@@ -172,14 +157,14 @@ uploaded_claim_ratio = st.file_uploader("Upload Claim Ratio Data (.xlsx)", type=
 uploaded_benefit = st.file_uploader("Upload Benefit Data (.csv)", type=["csv"], key="benefit")
 
 if uploaded_claim and uploaded_claim_ratio and uploaded_benefit:
-    # ----- Process Claim Data -----
+    # Process claim data
     raw_claim = pd.read_csv(uploaded_claim)
     st.write("Processing Claim Data...")
     claim_transformed = move_to_claim_template(raw_claim)
     st.subheader("Claim Data Preview:")
     st.dataframe(claim_transformed.head())
 
-    # ----- Process Claim Ratio Data -----
+    # Process claim ratio data
     claim_ratio_raw = pd.read_excel(uploaded_claim_ratio)
     # Filter: keep only rows with 'Policy No' that appear in Claim data
     policy_list = claim_transformed["Policy No"].unique().tolist()
@@ -202,11 +187,11 @@ if uploaded_claim and uploaded_claim_ratio and uploaded_benefit:
     st.subheader("Claim Ratio Data Preview (unique by Policy No):")
     st.dataframe(summary_cr_df.head())
 
-    # ----- Process Benefit Data -----
+    # Process benefit data
     raw_benefit = pd.read_csv(uploaded_benefit)
     st.write("Processing Benefit Data...")
     benefit_transformed = move_to_benefit_template(raw_benefit)
-    # Retain rows where Benefit data's 'ClaimNo' (or renamed 'Claim No') appears in Claim data "Claim No"
+    # Retain rows where Benefit data's 'ClaimNo' appears in Claim data "Claim No"
     claim_no_list = claim_transformed["Claim No"].unique().tolist()
     if "ClaimNo" in benefit_transformed.columns:
         benefit_transformed = benefit_transformed[benefit_transformed["ClaimNo"].isin(claim_no_list)]
@@ -218,7 +203,7 @@ if uploaded_claim and uploaded_claim_ratio and uploaded_benefit:
     st.subheader("Benefit Data Preview:")
     st.dataframe(benefit_transformed.head())
 
-    # ----- Prepare Summary Top Section (Claim Stats + Overall Claim Ratio) -----
+    # Summary Top Section (Claim Stats + Overall Claim Ratio)
     total_claims = len(claim_transformed)
     total_billed = int(claim_transformed["Sum of Billed"].sum())
     total_accepted = int(claim_transformed["Sum of Accepted"].sum())
@@ -243,8 +228,8 @@ if uploaded_claim and uploaded_claim_ratio and uploaded_benefit:
     
     summary_top_df = pd.concat([claim_summary_df, claim_ratio_overall], ignore_index=True)
     
-    # ----- DOWNLOAD THE EXCEL FILE -----
-    filename_input = st.text_input("Enter the Excel file name (without extension):", "Processed_Data")
+    # Download excel file
+    filename_input = st.text_input("Enter the Excel file name (without extension):", "SC & Benefit - - YTD")
     if filename_input:
         excel_file, final_filename = save_to_excel(claim_transformed, benefit_transformed,
                                                    summary_top_df, summary_cr_df, filename_input + ".xlsx")
