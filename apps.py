@@ -113,9 +113,8 @@ def move_to_benefit_template(df):
 def save_to_excel(claim_df, benefit_df, summary_top_df, claim_ratio_df, filename):
     """
     Creates an Excel file with:
-      - Summary sheet: Contains a header row ("Metric", "Value") and the top summary statistics
-        (claim stats + overall Claim Ratio), then a blank row, then a horizontal Claim Ratio table
-        with bold headers.
+      - Summary sheet: Writes summary statistics (without any header row) at the top,
+        then a blank row, then a horizontal Claim Ratio table with bold headers.
       - SC sheet: Cleaned Claim data.
       - Benefit sheet: Cleaned Benefit data.
     """
@@ -126,11 +125,10 @@ def save_to_excel(claim_df, benefit_df, summary_top_df, claim_ratio_df, filename
         # ---- Write Summary sheet ----
         summary_sheet = workbook.add_worksheet("Summary")
         bold_format = workbook.add_format({'bold': True})
-
-        # Write header row for top summary statistics
-        summary_sheet.write(0, 0, "Metric", bold_format)
-        summary_sheet.write(0, 1, "Value", bold_format)
-        row = 1
+        
+        row = 0
+        # Write summary top statistics (no header row)
+        # Each row will simply have Metric and Value, one under the other.
         for i, data in summary_top_df.iterrows():
             summary_sheet.write(row, 0, data["Metric"], bold_format)
             summary_sheet.write(row, 1, data["Value"])
@@ -183,7 +181,7 @@ if uploaded_claim and uploaded_claim_ratio and uploaded_benefit:
 
     # ----- Process Claim Ratio Data -----
     claim_ratio_raw = pd.read_excel(uploaded_claim_ratio)
-    # Filter: keep only rows with 'Policy No' in claim data
+    # Filter: keep only rows with 'Policy No' that appear in Claim data
     policy_list = claim_transformed["Policy No"].unique().tolist()
     claim_ratio_filtered = claim_ratio_raw[claim_ratio_raw["Policy No"].isin(policy_list)]
     # Drop duplicates based on "Policy No"
@@ -208,7 +206,7 @@ if uploaded_claim and uploaded_claim_ratio and uploaded_benefit:
     raw_benefit = pd.read_csv(uploaded_benefit)
     st.write("Processing Benefit Data...")
     benefit_transformed = move_to_benefit_template(raw_benefit)
-    # Retain rows where Benefit data's 'ClaimNo' (or renamed 'Claim No') exists in Claim data "Claim No"
+    # Retain rows where Benefit data's 'ClaimNo' (or renamed 'Claim No') appears in Claim data "Claim No"
     claim_no_list = claim_transformed["Claim No"].unique().tolist()
     if "ClaimNo" in benefit_transformed.columns:
         benefit_transformed = benefit_transformed[benefit_transformed["ClaimNo"].isin(claim_no_list)]
@@ -252,7 +250,4 @@ if uploaded_claim and uploaded_claim_ratio and uploaded_benefit:
                                                    summary_top_df, summary_cr_df, filename_input + ".xlsx")
         st.download_button(
             label="Download Excel File",
-            data=excel_file,
-            file_name=final_filename,
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
+            data=excel_file
