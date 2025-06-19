@@ -101,8 +101,9 @@ def save_to_excel(claim_df, benefit_df, summary_top_df, claim_ratio_df, filename
         
         # Define excel formats:
         bold_border = workbook.add_format({'bold': True, 'border': 1})
+        bold_center_border = workbook.add_format({'bold': True, 'border': 1, 'align': 'center'})
         plain_border = workbook.add_format({'border': 1})
-        header_yellow = workbook.add_format({'bold': True, 'border': 1, 'bg_color': '#FFFF00'})
+        header_yellow = workbook.add_format({'bold': True, 'border': 1, 'bg_color': '#FFFF00', 'align': 'center'})
         
         # Summary sheet:
         summary_sheet = workbook.add_worksheet("Summary")
@@ -110,7 +111,7 @@ def save_to_excel(claim_df, benefit_df, summary_top_df, claim_ratio_df, filename
         row = 0
         # Write summary statistics:
         for _, data in summary_top_df.iterrows():
-            summary_sheet.write(row, 0, data["Metric"], bold_border)
+            summary_sheet.write(row, 0, data["Metric"], bold_center_border)
             summary_sheet.write(row, 1, data["Value"], plain_border)
             row += 1
         # Insert blank row without borders (seperate sum stats & CR)
