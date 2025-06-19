@@ -250,4 +250,7 @@ if uploaded_claim and uploaded_claim_ratio and uploaded_benefit:
                                                    summary_top_df, summary_cr_df, filename_input + ".xlsx")
         st.download_button(
             label="Download Excel File",
-            data=excel_file
+            data=excel_file,
+            file_name=final_filename,
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
