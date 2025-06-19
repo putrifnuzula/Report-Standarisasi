@@ -103,7 +103,7 @@ def save_to_excel(claim_df, benefit_df, summary_top_df, claim_ratio_df, filename
         bold_border = workbook.add_format({'bold': True, 'border': 1})
         # bold_center_border = workbook.add_format({'bold': True, 'border': 1, 'align': 'center'})
         plain_border = workbook.add_format({'border': 1})
-        header_yellow = workbook.add_format({'bold': True, 'border': 1, 'bg_color': '#FFFF00', 'align': 'center'})
+        header_border = workbook.add_format({'bold': True, 'border': 1, 'align': 'center'})
         
         # Summary sheet:
         summary_sheet = workbook.add_worksheet("Summary")
@@ -122,7 +122,7 @@ def save_to_excel(claim_df, benefit_df, summary_top_df, claim_ratio_df, filename
         # Write header for Claim Ratio table (with yellow highlights)
         cr_columns = ["Company", "Net Premi", "Billed", "Unpaid", "Excess Total", "Excess Coy", "Excess Emp", "Claim", "CR", "Est Claim"]
         for col, header in enumerate(cr_columns):
-            summary_sheet.write(row, col, header, header_yellow)
+            summary_sheet.write(row, col, header, header_border)
         row += 1
         
         # Write Claim Ratio data rows
@@ -146,6 +146,9 @@ def save_to_excel(claim_df, benefit_df, summary_top_df, claim_ratio_df, filename
         rows_benefit, cols_benefit = benefit_df.shape[0] + 1, benefit_df.shape[1]
         ws_benefit.conditional_format(0, 0, rows_benefit - 1, cols_benefit - 1,
                                       {'type': 'no_errors', 'format': plain_border})
+        for col_num, value in enumerate(benefit_df.columns.values):
+            ws_benefit.write(0, col_num, value, header_border)
+
         
         writer.close()
     output.seek(0)
