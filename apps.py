@@ -85,31 +85,16 @@ def move_to_benefit_template(df):
     return df
 
 # ===================================
-# UTILITY: Prepare Vertical Claim Ratio Summary
-# ===================================
-def vertical_claim_ratio_summary(df):
-    """
-    For each unique policy (from claim ratio unique data), output six metrics on separate rows.
-    The metrics are displayed vertically as:
-      Company, Net Premi, Billed, Unpaid, Claim, CR.
-    Each policy's metrics are separated by a blank row.
-    """
-    metrics = ["Company", "Net Premi", "Billed", "Unpaid", "Claim", "CR"]
-    rows = []
-    for idx, r in df.iterrows():
-        for metric in metrics:
-            # Bold formatting will be applied when writing the Excel file.
-            rows.append({"Metric": metric, "Value": r.get(metric, "")})
-        # Append a blank row separating each policy block.
-        rows.append({"Metric": "", "Value": ""})
-    return pd.DataFrame(rows)
-
-# ===================================
 # SAVE TO EXCEL FUNCTION
 # ===================================
-def save_to_excel(claim_df, benefit_df, summary_df, filename):
+def save_to_excel(claim_df, benefit_df, summary_top_df, claim_ratio_df, filename):
+    """
+    Creates an Excel file with:
+      - Summary sheet:  Top summary (claim stats + overall CR) + a blank row, then claim ratio table
+      - SC sheet: cleaned claim data
+      - Benefit sheet: cleaned benefit data
+    """
     output = BytesIO()
-    # Create a writer using the xlsxwriter engine
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         workbook = writer.book
 
@@ -117,27 +102,49 @@ def save_to_excel(claim_df, benefit_df, summary_df, filename):
         # Write Summary sheet manually for formatting
         # -------------------------------
         summary_sheet = workbook.add_worksheet("Summary")
-        # Define a bold format for metric names
         bold_format = workbook.add_format({'bold': True})
-        # Write headers for the two columns: "Metric" and "Value"
-        summary_sheet.write(0, 0, "Metric", bold_format)
-        summary_sheet.write(0, 1, "Value")
-        
-        # Write each row from summary_df (starting at row 1)
-        for i, row in summary_df.iterrows():
-            metric = row["Metric"]
-            value = row["Value"]
-            if metric:  # non blank cell => bold the metric
-                summary_sheet.write(i+1, 0, metric, bold_format)
+
+        row = 0
+        # Write top summary header (2 columns: Metric, Value)
+        summary_sheet.write(row, 0, "Metric", bold_format)
+        summary_sheet.write(row, 1, "Value", bold_format)
+        row += 1
+        # Write each row from top summary (claim stats and overall CR)
+        for i, data in summary_top_df.iterrows():
+            metric = data["Metric"]
+            value = data["Value"]
+            if metric:
+                summary_sheet.write(row, 0, metric, bold_format)
             else:
-                summary_sheet.write(i+1, 0, metric)
-            summary_sheet.write(i+1, 1, value)
-        
+                summary_sheet.write(row, 0, metric)
+            summary_sheet.write(row, 1, value)
+            row += 1
+
+        # Add one blank row between the sections
+        row += 1
+
+        # Write header for Claim Ratio summary table (horizontal layout)
+        cr_columns = ["Company", "Net Premi", "Billed", "Unpaid", "ExcessTotal", "ExcessCoy", "ExcessEmp", "Claim", "CR"]
+        col = 0
+        for header in cr_columns:
+            summary_sheet.write(row, col, header, bold_format)
+            col += 1
+        row += 1
+
+        # Write each row of the claim ratio table
+        for i, data in claim_ratio_df.iterrows():
+            col = 0
+            for header in cr_columns:
+                summary_sheet.write(row, col, data.get(header, ""))
+                col += 1
+            row += 1
+
         # -------------------------------
         # Write Claim (SC) and Benefit sheets using pandas output
         # -------------------------------
         claim_df.to_excel(writer, index=False, sheet_name='SC')
         benefit_df.to_excel(writer, index=False, sheet_name='Benefit')
+
         writer.close()
     output.seek(0)
     return output, filename
@@ -159,14 +166,14 @@ if uploaded_claim and uploaded_claim_ratio and uploaded_benefit:
     claim_transformed = move_to_claim_template(raw_claim)
     st.subheader("Claim Data Preview:")
     st.dataframe(claim_transformed.head())
-    
+
     # ----- Process Claim Ratio Data -----
     claim_ratio_raw = pd.read_excel(uploaded_claim_ratio)
-    # Filter: only keep rows with Policy No values present in the claim data
+    # Keep only rows with 'Policy No' values present in the claim data
     policy_list = claim_transformed["Policy No"].unique().tolist()
     claim_ratio_filtered = claim_ratio_raw[claim_ratio_raw["Policy No"].isin(policy_list)]
-    # We need only these columns (Policy No will not be shown in the final summary):
-    desired_cols = ['Policy No', 'Company', 'Net Premi', 'Billed', 'Unpaid', 
+    # We need these columns from claim ratio. The desired columns now include ExcessTotal, ExcessCoy, ExcessEmp.
+    desired_cols = ['Policy No', 'Company', 'Net Premi', 'Billed', 'Unpaid',
                     'ExcessTotal', 'ExcessCoy', 'ExcessEmp', 'Claim', 'CR', 'Est Claim']
     missing_cols = [col for col in desired_cols if col not in claim_ratio_filtered.columns]
     if missing_cols:
@@ -177,7 +184,11 @@ if uploaded_claim and uploaded_claim_ratio and uploaded_benefit:
     
     st.subheader("Claim Ratio Data Preview (unique by Policy No):")
     st.dataframe(claim_ratio_unique.head())
-    
+
+    # Prepare the Claim Ratio summary table for the Summary sheet (drop the 'Policy No' column)
+    cr_columns = ["Company", "Net Premi", "Billed", "Unpaid", "ExcessTotal", "ExcessCoy", "ExcessEmp", "Claim", "CR"]
+    summary_cr_df = claim_ratio_unique[cr_columns]
+
     # ----- Process Benefit Data -----
     raw_benefit = pd.read_csv(uploaded_benefit)
     st.write("Processing Benefit Data...")
@@ -191,11 +202,10 @@ if uploaded_claim and uploaded_claim_ratio and uploaded_benefit:
     
     st.subheader("Benefit Data Preview:")
     st.dataframe(benefit_transformed.head())
-    
+
     # ===================================
-    # PREPARE THE SUMMARY SHEET
+    # PREPARE THE SUMMARY TOP SECTION (Claim stats + overall CR)
     # ===================================
-    # --- Top summary: Claim statistics ---
     total_claims = len(claim_transformed)
     total_billed = int(claim_transformed["Sum of Billed"].sum())
     total_accepted = int(claim_transformed["Sum of Accepted"].sum())
@@ -204,11 +214,12 @@ if uploaded_claim and uploaded_claim_ratio and uploaded_benefit:
     
     claim_summary_data = {
         "Metric": ["Total Claims", "Total Billed", "Total Accepted", "Total Excess", "Total Unpaid"],
-        "Value": [f"{total_claims:,}", f"{total_billed:,.2f}", f"{total_accepted:,.2f}", f"{total_excess:,.2f}", f"{total_unpaid:,.2f}"]
+        "Value": [f"{total_claims:,}", f"{total_billed:,.2f}", f"{total_accepted:,.2f}",
+                  f"{total_excess:,.2f}", f"{total_unpaid:,.2f}"]
     }
     claim_summary_df = pd.DataFrame(claim_summary_data)
     
-    # --- Overall Claim Ratio (from Claim Ratio data) ---
+    # Calculate overall Claim Ratio (from Claim Ratio data)
     if "Claim" in claim_ratio_unique.columns and "Net Premi" in claim_ratio_unique.columns:
         total_claim_ratio_claim = claim_ratio_unique["Claim"].sum()
         total_net_premi = claim_ratio_unique["Net Premi"].sum()
@@ -218,26 +229,15 @@ if uploaded_claim and uploaded_claim_ratio and uploaded_benefit:
     else:
         claim_ratio_overall = pd.DataFrame({"Metric": ["Claim Ratio (%)"], "Value": ["N/A"]})
     
-    summary_top = pd.concat([claim_summary_df, claim_ratio_overall], ignore_index=True)
-    
-    # --- Blank row ---
-    blank_row = pd.DataFrame({"Metric": [""], "Value": [""]})
-    
-    # --- Bottom summary: Vertical layout for claim ratio details ---
-    vertical_cr_summary = vertical_claim_ratio_summary(claim_ratio_unique)
-    
-    # Combine top summary, a blank row, and vertical claim ratio summary
-    summary_df = pd.concat([summary_top, blank_row, vertical_cr_summary], ignore_index=True)
-    
-    st.subheader("Summary Preview:")
-    st.dataframe(summary_df)
+    summary_top_df = pd.concat([claim_summary_df, claim_ratio_overall], ignore_index=True)
     
     # ===================================
     # DOWNLOAD THE EXCEL FILE
     # ===================================
     filename_input = st.text_input("Enter the Excel file name (without extension):", "Processed_Data")
     if filename_input:
-        excel_file, final_filename = save_to_excel(claim_transformed, benefit_transformed, summary_df, filename_input + ".xlsx")
+        excel_file, final_filename = save_to_excel(claim_transformed, benefit_transformed,
+                                                   summary_top_df, summary_cr_df, filename_input + ".xlsx")
         st.download_button(
             label="Download Excel File",
             data=excel_file,
