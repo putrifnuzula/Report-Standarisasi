@@ -182,7 +182,7 @@ if uploaded_claim and uploaded_claim_ratio and uploaded_benefit:
     claim_ratio_unique = claim_ratio_unique.rename(columns={'Est CR Total': 'Est Claim'})
     # For the horizontal summary table, use only the first 9 columns
     summary_cr_df = claim_ratio_unique[['Company', 'Net Premi', 'Billed', 'Unpaid', 
-                                         'Excess Total', 'Excess Coy', 'Excess Emp', 'Claim', 'CR']]
+                                         'Excess Total', 'Excess Coy', 'Excess Emp', 'Claim', 'CR', 'Est Claim']]
     
     st.subheader("Claim Ratio Data Preview (unique by Policy No):")
     st.dataframe(summary_cr_df.head())
