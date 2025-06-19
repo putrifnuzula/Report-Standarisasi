@@ -2,7 +2,9 @@ import pandas as pd
 import streamlit as st
 from io import BytesIO
 
-# Claim data functions
+# ===================================
+# CLAIM DATA FUNCTIONS
+# ===================================
 def filter_claim_data(df):
     df = df[df['ClaimStatus'] == 'R']
     return df
@@ -59,7 +61,9 @@ def move_to_claim_template(df):
     })
     return df_transformed
 
-# Benefit data functions:
+# ===================================
+# BENEFIT DATA FUNCTIONS
+# ===================================
 def filter_benefit_data(df):
     if 'Status Claim' in df.columns or 'Status_Claim' in df.columns:
         if 'Status_Claim' in df.columns:
@@ -67,7 +71,7 @@ def filter_benefit_data(df):
         else:
             df = df[df['Status Claim'] == 'R']
     else:
-        st.warning("Column 'Status Claim' not found. Data not filtered.")
+        st.warning("⚠️ Column 'Status Claim' not found. Data not filtered.")
     return df
 
 def move_to_benefit_template(df):
@@ -76,7 +80,7 @@ def move_to_benefit_template(df):
     for col in df.columns:
         if df[col].dtype == "object":
             df[col] = df[col].astype(str).str.strip()
-    # Rename Benefit columns
+    # Rename Benefit columns according to the mapping
     rename_mapping = {
         'ClientName': 'Client Name',
         'PolicyNo': 'Policy No',
@@ -103,33 +107,50 @@ def move_to_benefit_template(df):
     df = df.drop(columns=["Status_Claim", "BAmount"], errors='ignore')
     return df
 
-# Save to excel
+# ===================================
+# SAVE TO EXCEL FUNCTION
+# ===================================
 def save_to_excel(claim_df, benefit_df, summary_top_df, claim_ratio_df, filename):
+    """
+    Creates an Excel file with:
+      - Summary sheet: Writes the summary statistics (claim stats + overall claim ratio)
+        starting from the first row without header, then a blank row, then a horizontal
+        Claim Ratio table with bold headers.
+      - SC sheet: Cleaned Claim data.
+      - Benefit sheet: Cleaned Benefit data.
+    Also, gridlines are hidden and every cell gets a border.
+    """
     output = BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         workbook = writer.book
 
-        # Summary Sheet:
-        summary_sheet = workbook.add_worksheet("Summary")
-        bold_format = workbook.add_format({'bold': True})
+        # Create a format for bold text with full borders
+        bold_border = workbook.add_format({'bold': True, 'border': 1})
+        # Create a plain cell format with full borders
+        plain_border = workbook.add_format({'border': 1})
         
+        # ---- Write Summary sheet ----
+        summary_sheet = workbook.add_worksheet("Summary")
+        summary_sheet.hide_gridlines(2)  # Hide gridlines
+
         row = 0
-        # Write summary top statistics (no header row)
-        # Each row will simply have Metric and Value, one under the other.
+        # Write summary top statistics (each row: metric and value), no header row.
         for i, data in summary_top_df.iterrows():
-            summary_sheet.write(row, 0, data["Metric"], bold_format)
-            summary_sheet.write(row, 1, data["Value"])
+            summary_sheet.write(row, 0, data["Metric"], bold_border)
+            summary_sheet.write(row, 1, data["Value"], plain_border)
             row += 1
 
-        # Insert a blank row (between sum stats and CR)
+        # Insert a blank row with borders (assume two columns)
+        summary_sheet.write(row, 0, "", plain_border)
+        summary_sheet.write(row, 1, "", plain_border)
         row += 1
 
         # Write header for Claim Ratio table (horizontal layout)
         cr_columns = ["Company", "Net Premi", "Billed", "Unpaid", 
-                      "Excess Total", "Excess Coy", "Excess Emp", "Claim", "CR", "Est Claim"]
+                      "Excess Total", "Excess Coy", "Excess Emp", "Claim", "CR"]
         col = 0
         for header in cr_columns:
-            summary_sheet.write(row, col, header, bold_format)
+            summary_sheet.write(row, col, header, bold_border)
             col += 1
         row += 1
 
@@ -137,19 +158,39 @@ def save_to_excel(claim_df, benefit_df, summary_top_df, claim_ratio_df, filename
         for i, data in claim_ratio_df.iterrows():
             col = 0
             for header in cr_columns:
-                summary_sheet.write(row, col, data.get(header, ""))
+                summary_sheet.write(row, col, data.get(header, ""), plain_border)
                 col += 1
             row += 1
 
-        # SC & Benefit sheets naming
+        # ---- Write Claim data (SC) and Benefit sheets using pandas ----
         claim_df.to_excel(writer, index=False, sheet_name='SC')
         benefit_df.to_excel(writer, index=False, sheet_name='Benefit')
+        
+        # Hide gridlines in SC and Benefit sheets and apply full borders via conditional formatting.
+        ws_claim = writer.sheets["SC"]
+        ws_benefit = writer.sheets["Benefit"]
+        ws_claim.hide_gridlines(2)
+        ws_benefit.hide_gridlines(2)
+        
+        # Apply border formatting to the entire SC sheet.
+        # Get shape of claim_df and add one for header.
+        rows_claim, cols_claim = claim_df.shape[0] + 1, claim_df.shape[1]
+        ws_claim.conditional_format(0, 0, rows_claim - 1, cols_claim - 1, 
+                                    {'type': 'no_errors', 'format': plain_border})
+        
+        # Apply border formatting to the entire Benefit sheet.
+        rows_benefit, cols_benefit = benefit_df.shape[0] + 1, benefit_df.shape[1]
+        ws_benefit.conditional_format(0, 0, rows_benefit - 1, cols_benefit - 1, 
+                                      {'type': 'no_errors', 'format': plain_border})
+        
         writer.close()
     output.seek(0)
     return output, filename
 
-# Streamlit app UI
-st.title("Template - Standardisasi Report")
+# ===================================
+# STREAMLIT APP UI
+# ===================================
+st.title("Integrated Claims, Claim Ratio, and Benefit Data Processor")
 st.header("Upload Files")
 
 uploaded_claim = st.file_uploader("Upload Claim Data (.csv)", type=["csv"], key="claim")
@@ -157,16 +198,16 @@ uploaded_claim_ratio = st.file_uploader("Upload Claim Ratio Data (.xlsx)", type=
 uploaded_benefit = st.file_uploader("Upload Benefit Data (.csv)", type=["csv"], key="benefit")
 
 if uploaded_claim and uploaded_claim_ratio and uploaded_benefit:
-    # Process claim data
+    # ----- Process Claim Data -----
     raw_claim = pd.read_csv(uploaded_claim)
     st.write("Processing Claim Data...")
     claim_transformed = move_to_claim_template(raw_claim)
     st.subheader("Claim Data Preview:")
     st.dataframe(claim_transformed.head())
 
-    # Process claim ratio data
+    # ----- Process Claim Ratio Data -----
     claim_ratio_raw = pd.read_excel(uploaded_claim_ratio)
-    # Filter: keep only rows with 'Policy No' that appear in Claim data
+    # Filter: keep only rows with 'Policy No' appearing in Claim data
     policy_list = claim_transformed["Policy No"].unique().tolist()
     claim_ratio_filtered = claim_ratio_raw[claim_ratio_raw["Policy No"].isin(policy_list)]
     # Drop duplicates based on "Policy No"
@@ -182,16 +223,15 @@ if uploaded_claim and uploaded_claim_ratio and uploaded_benefit:
     claim_ratio_unique = claim_ratio_unique.rename(columns={'Est CR Total': 'Est Claim'})
     # For the horizontal summary table, use only the first 9 columns
     summary_cr_df = claim_ratio_unique[['Company', 'Net Premi', 'Billed', 'Unpaid', 
-                                         'Excess Total', 'Excess Coy', 'Excess Emp', 'Claim', 'CR', 'Est Claim']]
-    
+                                         'Excess Total', 'Excess Coy', 'Excess Emp', 'Claim', 'CR']]
     st.subheader("Claim Ratio Data Preview (unique by Policy No):")
     st.dataframe(summary_cr_df.head())
 
-    # Process benefit data
+    # ----- Process Benefit Data -----
     raw_benefit = pd.read_csv(uploaded_benefit)
     st.write("Processing Benefit Data...")
     benefit_transformed = move_to_benefit_template(raw_benefit)
-    # Retain rows where Benefit data's 'ClaimNo' appears in Claim data "Claim No"
+    # Retain rows where Benefit data's 'ClaimNo' (or renamed 'Claim No') exists in Claim data "Claim No"
     claim_no_list = claim_transformed["Claim No"].unique().tolist()
     if "ClaimNo" in benefit_transformed.columns:
         benefit_transformed = benefit_transformed[benefit_transformed["ClaimNo"].isin(claim_no_list)]
@@ -199,11 +239,10 @@ if uploaded_claim and uploaded_claim_ratio and uploaded_benefit:
         benefit_transformed = benefit_transformed[benefit_transformed["Claim No"].isin(claim_no_list)]
     else:
         st.warning("Column 'ClaimNo' not found in Benefit data; skipping filtering based on ClaimNo.")
-    
     st.subheader("Benefit Data Preview:")
     st.dataframe(benefit_transformed.head())
 
-    # Summary Top Section (Claim Stats + Overall Claim Ratio)
+    # ----- Prepare Summary Top Section (Claim Stats + Overall Claim Ratio) -----
     total_claims = len(claim_transformed)
     total_billed = int(claim_transformed["Sum of Billed"].sum())
     total_accepted = int(claim_transformed["Sum of Accepted"].sum())
@@ -228,8 +267,8 @@ if uploaded_claim and uploaded_claim_ratio and uploaded_benefit:
     
     summary_top_df = pd.concat([claim_summary_df, claim_ratio_overall], ignore_index=True)
     
-    # Download excel file
-    filename_input = st.text_input("Enter the Excel file name (without extension):", "SC & Benefit - - YTD")
+    # ----- DOWNLOAD THE EXCEL FILE -----
+    filename_input = st.text_input("Enter the Excel file name (without extension):", "Processed_Data")
     if filename_input:
         excel_file, final_filename = save_to_excel(claim_transformed, benefit_transformed,
                                                    summary_top_df, summary_cr_df, filename_input + ".xlsx")
