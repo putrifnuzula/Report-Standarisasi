@@ -174,7 +174,7 @@ if uploaded_claim and uploaded_claim_ratio and uploaded_benefit:
     claim_ratio_filtered = claim_ratio_raw[claim_ratio_raw["Policy No"].isin(policy_list)]
     # We need these columns from claim ratio. The desired columns now include ExcessTotal, ExcessCoy, ExcessEmp.
     desired_cols = ['Policy No', 'Company', 'Net Premi', 'Billed', 'Unpaid',
-                    'ExcessTotal', 'ExcessCoy', 'ExcessEmp', 'Claim', 'CR', 'Est Claim']
+                    'Excess Total', 'Excess Coy', 'Excess Emp', 'Claim', 'CR', 'Est Claim']
     missing_cols = [col for col in desired_cols if col not in claim_ratio_filtered.columns]
     if missing_cols:
         st.warning(f"Missing columns in Claim Ratio Data: {missing_cols}")
@@ -186,7 +186,7 @@ if uploaded_claim and uploaded_claim_ratio and uploaded_benefit:
     st.dataframe(claim_ratio_unique.head())
 
     # Prepare the Claim Ratio summary table for the Summary sheet (drop the 'Policy No' column)
-    cr_columns = ["Company", "Net Premi", "Billed", "Unpaid", "ExcessTotal", "ExcessCoy", "ExcessEmp", "Claim", "CR"]
+    cr_columns = ["Company", "Net Premi", "Billed", "Unpaid", "Excess Total", "Excess Coy", "Excess Emp", "Claim", "CR"]
     summary_cr_df = claim_ratio_unique[cr_columns]
 
     # ----- Process Benefit Data -----
