@@ -87,24 +87,35 @@ def move_to_benefit_template(df):
 # ===================================
 # SAVE TO EXCEL FUNCTION
 # ===================================
-def save_to_excel(claim_df, benefit_df, claim_ratio_df, filename):
+def save_to_excel(claim_df, benefit_df, summary_top_df, claim_ratio_df, filename):
     """
     Creates an Excel file with:
-      - Summary sheet: A blank row followed by a horizontal Claim Ratio table with bold headers.
-      - SC sheet: cleaned Claim data.
-      - Benefit sheet: cleaned Benefit data.
+      - Summary sheet: Top summary (claim stats + overall CR) without header row, followed by a blank row,
+        then a horizontal Claim Ratio table with bold headers.
+      - SC sheet: cleaned claim data
+      - Benefit sheet: cleaned benefit data
     """
     output = BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         workbook = writer.book
+
+        # -------------------------------
+        # Write Summary sheet manually for formatting
+        # -------------------------------
         summary_sheet = workbook.add_worksheet("Summary")
         bold_format = workbook.add_format({'bold': True})
-        row = 0
 
-        # Add one blank row (no top summary metrics are written)
+        row = 0
+        # Write top summary directly (without headers)
+        for i, data in summary_top_df.iterrows():
+            summary_sheet.write(row, 0, data["Metric"], bold_format if data["Metric"] else None)
+            summary_sheet.write(row, 1, data["Value"])
+            row += 1
+
+        # Add one blank row between the sections
         row += 1
 
-        # Write header for Claim Ratio table (horizontal layout)
+        # Write header for Claim Ratio summary table (horizontal layout)
         cr_columns = ["Company", "Net Premi", "Billed", "Unpaid", "Excess Total", "Excess Coy", "Excess Emp", "Claim", "CR"]
         col = 0
         for header in cr_columns:
@@ -112,7 +123,7 @@ def save_to_excel(claim_df, benefit_df, claim_ratio_df, filename):
             col += 1
         row += 1
 
-        # Write each row of the Claim Ratio table
+        # Write each row of the claim ratio table
         for i, data in claim_ratio_df.iterrows():
             col = 0
             for header in cr_columns:
@@ -120,7 +131,9 @@ def save_to_excel(claim_df, benefit_df, claim_ratio_df, filename):
                 col += 1
             row += 1
 
-        # Write the Claim data (SC) and Benefit sheets with pandas
+        # -------------------------------
+        # Write Claim (SC) and Benefit sheets using pandas output
+        # -------------------------------
         claim_df.to_excel(writer, index=False, sheet_name='SC')
         benefit_df.to_excel(writer, index=False, sheet_name='Benefit')
         writer.close()
@@ -131,8 +144,8 @@ def save_to_excel(claim_df, benefit_df, claim_ratio_df, filename):
 # STREAMLIT APP UI
 # ===================================
 st.title("Integrated Claims, Claim Ratio, and Benefit Data Processor")
-st.header("Upload Files")
 
+st.header("Upload Files")
 uploaded_claim = st.file_uploader("Upload Claim Data (.csv)", type=["csv"], key="claim")
 uploaded_claim_ratio = st.file_uploader("Upload Claim Ratio Data (.xlsx)", type=["xlsx"], key="claim_ratio")
 uploaded_benefit = st.file_uploader("Upload Benefit Data (.csv)", type=["csv"], key="benefit")
@@ -147,11 +160,12 @@ if uploaded_claim and uploaded_claim_ratio and uploaded_benefit:
 
     # ----- Process Claim Ratio Data -----
     claim_ratio_raw = pd.read_excel(uploaded_claim_ratio)
+    # Filter: keep only rows with 'Policy No' values present in the claim data
     policy_list = claim_transformed["Policy No"].unique().tolist()
     claim_ratio_filtered = claim_ratio_raw[claim_ratio_raw["Policy No"].isin(policy_list)]
     # Drop duplicates based on "Policy No"
     claim_ratio_unique = claim_ratio_filtered.drop_duplicates(subset="Policy No")
-    # Select desired columns (excluding "Policy No")
+    # Now select the desired columns directly (without "Policy No")
     desired_cols = ['Company', 'Net Premi', 'Billed', 'Unpaid', 
                     'Excess Total', 'Excess Coy', 'Excess Emp', 'Claim', 'CR', 'Est CR Total']
     missing_cols = [col for col in desired_cols if col not in claim_ratio_unique.columns]
@@ -159,10 +173,10 @@ if uploaded_claim and uploaded_claim_ratio and uploaded_benefit:
         st.warning(f"Missing columns in Claim Ratio Data: {missing_cols}")
     claim_ratio_unique = claim_ratio_unique[[col for col in desired_cols if col in claim_ratio_unique.columns]]
     # Rename 'Est CR Total' to 'Est Claim'
-    claim_ratio_unique = claim_ratio_unique.rename(columns={'Est CR Total': 'Est Claim'})
-    # For the horizontal summary table, use only the first 9 columns
-    summary_cr_df = claim_ratio_unique[['Company', 'Net Premi', 'Billed', 'Unpaid', 
-                                         'Excess Total', 'Excess Coy', 'Excess Emp', 'Claim', 'CR']]
+    summary_cr_df = claim_ratio_unique.rename(columns={'Est CR Total': 'Est Claim'})
+    # For the horizontal summary table, we will use only the first 9 columns
+    summary_cr_df = summary_cr_df[['Company', 'Net Premi', 'Billed', 'Unpaid', 
+                                    'Excess Total', 'Excess Coy', 'Excess Emp', 'Claim', 'CR']]
     
     st.subheader("Claim Ratio Data Preview (unique by Policy No):")
     st.dataframe(summary_cr_df.head())
@@ -171,6 +185,7 @@ if uploaded_claim and uploaded_claim_ratio and uploaded_benefit:
     raw_benefit = pd.read_csv(uploaded_benefit)
     st.write("Processing Benefit Data...")
     benefit_transformed = move_to_benefit_template(raw_benefit)
+    # Drop rows from Benefit data where 'ClaimNo' is not in the cleaned Claim data "Claim No"
     claim_no_list = claim_transformed["Claim No"].unique().tolist()
     if "ClaimNo" in benefit_transformed.columns:
         benefit_transformed = benefit_transformed[benefit_transformed["ClaimNo"].isin(claim_no_list)]
@@ -181,12 +196,40 @@ if uploaded_claim and uploaded_claim_ratio and uploaded_benefit:
     st.dataframe(benefit_transformed.head())
 
     # ===================================
+    # PREPARE THE SUMMARY TOP SECTION (Claim stats + overall CR)
+    # ===================================
+    total_claims = len(claim_transformed)
+    total_billed = int(claim_transformed["Sum of Billed"].sum())
+    total_accepted = int(claim_transformed["Sum of Accepted"].sum())
+    total_excess = int(claim_transformed["Sum of Excess Total"].sum())
+    total_unpaid = int(claim_transformed["Sum of Unpaid"].sum())
+    
+    claim_summary_data = {
+        "Metric": ["Total Claims", "Total Billed", "Total Accepted", "Total Excess", "Total Unpaid"],
+        "Value": [f"{total_claims:,}", f"{total_billed:,.2f}", f"{total_accepted:,.2f}",
+                  f"{total_excess:,.2f}", f"{total_unpaid:,.2f}"]
+    }
+    claim_summary_df = pd.DataFrame(claim_summary_data)
+    
+    # Calculate overall Claim Ratio (from Claim Ratio data)
+    if "Claim" in claim_ratio_unique.columns and "Net Premi" in claim_ratio_unique.columns:
+        total_claim_ratio_claim = claim_ratio_unique["Claim"].sum()
+        total_net_premi = claim_ratio_unique["Net Premi"].sum()
+        overall_cr = (total_claim_ratio_claim / total_net_premi) * 100 if total_net_premi != 0 else 0
+        claim_ratio_overall = pd.DataFrame({"Metric": ["Claim Ratio (%)"],
+                                            "Value": [f"{overall_cr:.2f}%"]})
+    else:
+        claim_ratio_overall = pd.DataFrame({"Metric": ["Claim Ratio (%)"], "Value": ["N/A"]})
+    
+    summary_top_df = pd.concat([claim_summary_df, claim_ratio_overall], ignore_index=True)
+    
+    # ===================================
     # DOWNLOAD THE EXCEL FILE
     # ===================================
     filename_input = st.text_input("Enter the Excel file name (without extension):", "Processed_Data")
     if filename_input:
         excel_file, final_filename = save_to_excel(claim_transformed, benefit_transformed,
-                                                   summary_cr_df, filename_input + ".xlsx")
+                                                   summary_top_df, summary_cr_df, filename_input + ".xlsx")
         st.download_button(
             label="Download Excel File",
             data=excel_file,
