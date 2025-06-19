@@ -65,8 +65,8 @@ if uploaded_claim and uploaded_cr and uploaded_benefit:
     # Process Claim Ratio
     cr_df = pd.read_excel(uploaded_cr)
     cr_df.columns = cr_df.columns.str.strip()
-    policy_nos = transformed_data["PolicyNo"].unique().tolist()
-    filtered_cr_df = cr_df[cr_df["PolicyNo"].isin(policy_nos)]
+    policy_nos = transformed_data["Policy No"].unique().tolist()
+    filtered_cr_df = cr_df[cr_df["Policy No"].isin(policy_nos)]
     required_cols = ["Company", "Net Premi", "Billed", "Unpaid", "Excess Total",
                      "Excess Coy", "Excess Emp", "Claim", "CR", "Est Claim"]
     existing_cols = [col for col in required_cols if col in filtered_cr_df.columns]
@@ -80,7 +80,7 @@ if uploaded_claim and uploaded_cr and uploaded_benefit:
     st.write("Transformed Claim Data:")
     st.dataframe(transformed_data.head())
 
-    st.write("Filtered Claim Ratio (based on PolicyNo):")
+    st.write("Filtered Claim Ratio (based on Policy No):")
     st.dataframe(filtered_cr_df.head())
 
     st.write("Raw Benefit Data:")
