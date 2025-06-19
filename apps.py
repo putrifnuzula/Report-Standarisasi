@@ -90,7 +90,7 @@ def move_to_benefit_template(df):
 def save_to_excel(claim_df, benefit_df, summary_top_df, claim_ratio_df, filename):
     """
     Creates an Excel file with:
-      - Summary sheet:  Top summary (claim stats + overall CR) + a blank row, then claim ratio table
+      - Summary sheet: Top summary (claim stats + overall CR) + a blank row, then claim ratio table
       - SC sheet: cleaned claim data
       - Benefit sheet: cleaned benefit data
     """
@@ -124,7 +124,7 @@ def save_to_excel(claim_df, benefit_df, summary_top_df, claim_ratio_df, filename
         row += 1
 
         # Write header for Claim Ratio summary table (horizontal layout)
-        cr_columns = ["Company", "Net Premi", "Billed", "Unpaid", "ExcessTotal", "ExcessCoy", "ExcessEmp", "Claim", "CR"]
+        cr_columns = ["Company", "Net Premi", "Billed", "Unpaid", "Excess Total", "Excess Coy", "Excess Emp", "Claim", "CR"]
         col = 0
         for header in cr_columns:
             summary_sheet.write(row, col, header, bold_format)
@@ -172,12 +172,14 @@ if uploaded_claim and uploaded_claim_ratio and uploaded_benefit:
     # Keep only rows with 'Policy No' values present in the claim data
     policy_list = claim_transformed["Policy No"].unique().tolist()
     claim_ratio_filtered = claim_ratio_raw[claim_ratio_raw["Policy No"].isin(policy_list)]
-    # We need these columns from claim ratio. The desired columns now include ExcessTotal, ExcessCoy, ExcessEmp.
-    desired_cols = ['Policy No', 'Company', 'Net Premi', 'Billed', 'Unpaid',
-                    'Excess Total', 'Excess Coy', 'Excess Emp', 'Claim', 'CR', 'Est Claim']
+    # Use the following desired columns (including spaces):
+    # Note: For filtering purposes, we expect "Policy No" to be present in claim_ratio_raw.
+    desired_cols = ['Policy No', 'Company', 'Net Premi', 'Billed', 'Unpaid', 
+                    'Excess Total', 'Excess Coy', 'Excess Emp', 'Claim', 'CR', 'Est CR Total']
     missing_cols = [col for col in desired_cols if col not in claim_ratio_filtered.columns]
     if missing_cols:
         st.warning(f"Missing columns in Claim Ratio Data: {missing_cols}")
+    # Select only the desired columns (if available)
     claim_ratio_filtered = claim_ratio_filtered[[col for col in desired_cols if col in claim_ratio_filtered.columns]]
     # Drop duplicates based on "Policy No" (one row per unique policy)
     claim_ratio_unique = claim_ratio_filtered.drop_duplicates(subset="Policy No")
@@ -185,9 +187,10 @@ if uploaded_claim and uploaded_claim_ratio and uploaded_benefit:
     st.subheader("Claim Ratio Data Preview (unique by Policy No):")
     st.dataframe(claim_ratio_unique.head())
 
-    # Prepare the Claim Ratio summary table for the Summary sheet (drop the 'Policy No' column)
-    cr_columns = ["Company", "Net Premi", "Billed", "Unpaid", "Excess Total", "Excess Coy", "Excess Emp", "Claim", "CR"]
-    summary_cr_df = claim_ratio_unique[cr_columns]
+    # Prepare the Claim Ratio summary table for the Summary sheet:
+    # We drop the "Policy No" column and select desired columns (with spaces), then rename 'Est CR Total' to 'Est Claim'
+    cr_columns = ['Company', 'Net Premi', 'Billed', 'Unpaid', 'Excess Total', 'Excess Coy', 'Excess Emp', 'Claim', 'CR', 'Est CR Total']
+    summary_cr_df = claim_ratio_unique[cr_columns].rename(columns={'Est CR Total': 'Est Claim'})
 
     # ----- Process Benefit Data -----
     raw_benefit = pd.read_csv(uploaded_benefit)
