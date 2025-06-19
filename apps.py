@@ -2,21 +2,23 @@ import pandas as pd
 import streamlit as st
 from io import BytesIO
 
-# Function to filter and clean claim data
-def filter_data(df):
-    if 'Status Claim' in df.columns:
-        df = df[df['Status_Claim'] == 'R']
-    return df
-
-def move_to_template(df):
+#Cleansing Data
+def clean_data(df, source="claim"):
     df.columns = df.columns.str.strip()
     for col in df.columns:
         if df[col].dtype == "object":
             df[col] = df[col].astype(str).str.strip()
-    df = df.drop(columns=["Status_Claim", "BAmount"], errors='ignore')
-    return filter_data(df)
 
-# Save all data into Excel file with 3 sheets
+    if source == "claim" and "ClaimStatus" in df.columns:
+        df = df[df["ClaimStatus"] == "R"]
+    elif source == "benefit" and "Status_Claim" in df.columns:
+        df = df[df["Status_Claim"] == "R"]
+
+    df = df.drop(columns=["Status_Claim", "BAmount"], errors='ignore')
+    df = df.drop(columns=["ClaimStatus"], errors='ignore')
+    return df
+
+#Save to Excel
 def save_to_excel(transformed_df, benefit_df, summary_stats, filtered_cr_df, filename):
     output = BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
@@ -40,21 +42,21 @@ def save_to_excel(transformed_df, benefit_df, summary_stats, filtered_cr_df, fil
     output.seek(0)
     return output, filename
 
-# --- Streamlit UI ---
+# Streamlit UI
 st.title("Claim & Benefit Excel Template Generator")
 
-# Upload all files first
+# Upload file
 st.subheader("Upload Required Files")
-uploaded_claim = st.file_uploader("Claim Data (.csv)", type=["csv"])
-uploaded_cr = st.file_uploader("Claim Ratio File (.xlsx)", type=["xlsx"])
-uploaded_benefit = st.file_uploader("Benefit Data (.csv)", type=["csv"])
+uploaded_claim = st.file_uploader("1. Upload Claim Data (.csv)", type=["csv"])
+uploaded_cr = st.file_uploader("2. Upload Claim Ratio File (.xlsx)", type=["xlsx"])
+uploaded_benefit = st.file_uploader("3. Upload Benefit Data (.csv)", type=["csv"])
 
 if uploaded_claim and uploaded_cr and uploaded_benefit:
-    # Process Claim Data
+    # Proses Claim Data
     claim_df = pd.read_csv(uploaded_claim)
-    transformed_data = move_to_template(claim_df)
+    transformed_data = clean_data(claim_df, source="claim")
 
-    # Summary stats
+    #Statistics Summary
     total_claims = len(transformed_data)
     total_billed = int(transformed_data["Billed"].sum())
     total_accepted = int(transformed_data["Accepted"].sum())
@@ -62,33 +64,36 @@ if uploaded_claim and uploaded_cr and uploaded_benefit:
     total_unpaid = int(transformed_data["Unpaid"].sum())
     summary_stats = [total_claims, total_billed, total_accepted, total_excess, total_unpaid]
 
-    # Process Claim Ratio
+    #Claim Ratio
     cr_df = pd.read_excel(uploaded_cr)
     cr_df.columns = cr_df.columns.str.strip()
-    policy_nos = transformed_data["Policy No"].unique().tolist()
-    filtered_cr_df = cr_df[cr_df["Policy No"].isin(policy_nos)]
+    policy_nos = transformed_data["PolicyNo"].unique().tolist()
+    filtered_cr_df = cr_df[cr_df["PolicyNo"].isin(policy_nos)]
+
     required_cols = ["Company", "Net Premi", "Billed", "Unpaid", "Excess Total",
                      "Excess Coy", "Excess Emp", "Claim", "CR", "Est Claim"]
     existing_cols = [col for col in required_cols if col in filtered_cr_df.columns]
     filtered_cr_df = filtered_cr_df[existing_cols]
 
-    # Load Benefit File
+    #Benefit
     benefit_df = pd.read_csv(uploaded_benefit)
+    benefit_df = clean_data(benefit_df, source="benefit")
 
-    # Show Previews
+    #Preview
     st.subheader("Data Preview")
     st.write("Transformed Claim Data:")
     st.dataframe(transformed_data.head())
 
-    st.write("Filtered Claim Ratio (based on Policy No):")
+    st.write("Filtered Claim Ratio Data:")
     st.dataframe(filtered_cr_df.head())
 
-    st.write("Raw Benefit Data:")
+    st.write("Filtered Benefit Data:")
     st.dataframe(benefit_df.head())
 
-    # File name + download
+    # Input file name and download
     st.subheader("Export to Excel")
     filename = st.text_input("Enter Excel file name (without extension):", "Transformed_Claim_Data")
+
     if filename:
         excel_file, final_filename = save_to_excel(
             transformed_df=transformed_data,
@@ -105,4 +110,4 @@ if uploaded_claim and uploaded_cr and uploaded_benefit:
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
 else:
-    st.info("Please upload all three files above to continue.")
+    st.info("Please upload all three files to continue.")
