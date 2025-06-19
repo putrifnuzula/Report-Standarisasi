@@ -126,7 +126,7 @@ def save_to_excel(claim_df, benefit_df, summary_top_df, claim_ratio_df, filename
 
         # Write header for Claim Ratio table (horizontal layout)
         cr_columns = ["Company", "Net Premi", "Billed", "Unpaid", 
-                      "Excess Total", "Excess Coy", "Excess Emp", "Claim", "CR"]
+                      "Excess Total", "Excess Coy", "Excess Emp", "Claim", "CR", "Est Claim"]
         col = 0
         for header in cr_columns:
             summary_sheet.write(row, col, header, bold_format)
