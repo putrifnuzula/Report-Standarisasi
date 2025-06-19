@@ -152,11 +152,11 @@ def save_to_excel(claim_df, benefit_df, summary_top_df, claim_ratio_df, filename
 
 # Streamlit APP UI
 st.title("Template - Standardisasi Report")
-st.header("Upload Files")
+st.subheader("Upload Files")
 
-uploaded_claim = st.file_uploader("Upload Claim Data (.csv)", type=["csv"], key="claim")
-uploaded_claim_ratio = st.file_uploader("Upload Claim Ratio Data (.xlsx)", type=["xlsx"], key="claim_ratio")
-uploaded_benefit = st.file_uploader("Upload Benefit Data (.csv)", type=["csv"], key="benefit")
+uploaded_claim = st.file_uploader("Upload Claim Data", type=["csv"], key="claim")
+uploaded_claim_ratio = st.file_uploader("Upload Claim Ratio Data", type=["xlsx"], key="claim_ratio")
+uploaded_benefit = st.file_uploader("Upload Benefit Data", type=["csv"], key="benefit")
 
 if uploaded_claim and uploaded_claim_ratio and uploaded_benefit:
     # Process claim data
