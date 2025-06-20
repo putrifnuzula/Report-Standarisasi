@@ -100,10 +100,10 @@ def save_to_excel(claim_df, benefit_df, summary_top_df, claim_ratio_df, filename
         workbook = writer.book
         
         # Define excel formats:
-        bold_border = workbook.add_format({'bold': True, 'border': 1})
-        # bold_center_border = workbook.add_format({'bold': True, 'border': 1, 'align': 'center'})
+        bold_border = workbook.add_format({'bold': True, 'border': 1, 'font_name': 'VAGRoundedStd-Light'})
+        # bold_center_border = workbook.add_format({'bold': True, 'border': 1, 'align': 'center', 'font_name': 'VAGRoundedStd-Light'})
         plain_border = workbook.add_format({'border': 1})
-        header_border = workbook.add_format({'bold': True, 'border': 1, 'align': 'center'})
+        header_border = workbook.add_format({'bold': True, 'border': 1, 'align': 'center', 'font_name': 'VAGRoundedStd-Light'})
         
         # Summary sheet:
         summary_sheet = workbook.add_worksheet("Summary")
