@@ -139,7 +139,7 @@ def save_to_excel(claim_df, benefit_df, summary_top_df, claim_ratio_df, filename
         ws_claim.conditional_format(0, 0, rows_claim - 1, cols_claim - 1,
                                      {'type': 'no_errors', 'format': plain_border})
         for col_num, value in enumerate(claim_df.columns.values):
-            ws_benefit.write(0, col_num, value, header_border)
+            ws_claim.write(0, col_num, value, header_border)
         
         # Benefit sheet
         benefit_df.to_excel(writer, index=False, sheet_name='Benefit')
