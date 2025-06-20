@@ -119,7 +119,7 @@ def save_to_excel(claim_df, benefit_df, summary_top_df, claim_ratio_df, filename
         summary_sheet.write(row, 1, "")
         row += 1
         
-        # Write header for Claim Ratio table (with yellow highlights)
+        # Write header for Claim Ratio table
         cr_columns = ["Company", "Net Premi", "Billed", "Unpaid", "Excess Total", "Excess Coy", "Excess Emp", "Claim", "CR", "Est Claim"]
         for col, header in enumerate(cr_columns):
             summary_sheet.write(row, col, header, header_border)
@@ -138,6 +138,8 @@ def save_to_excel(claim_df, benefit_df, summary_top_df, claim_ratio_df, filename
         rows_claim, cols_claim = claim_df.shape[0] + 1, claim_df.shape[1]
         ws_claim.conditional_format(0, 0, rows_claim - 1, cols_claim - 1,
                                      {'type': 'no_errors', 'format': plain_border})
+        for col_num, value in enumerate(claim_df.columns.values):
+            ws_benefit.write(0, col_num, value, header_border)
         
         # Benefit sheet
         benefit_df.to_excel(writer, index=False, sheet_name='Benefit')
