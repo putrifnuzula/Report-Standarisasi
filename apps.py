@@ -101,10 +101,9 @@ def save_to_excel(claim_df, benefit_df, summary_top_df, claim_ratio_df, filename
         workbook.formats[0].set_font_name('VAG Rounded Std Light')
         
         # Define excel formats:
-        bold_border = workbook.add_format({'bold': True, 'border': 1})
-        # bold_border = workbook.add_format({'bold': True, 'border': 1, 'font_name': 'VAG Rounded Std Light'})
-        plain_border = workbook.add_format({'border': 1})
-        header_border = workbook.add_format({'bold': True, 'border': 1, 'align': 'center'})
+        bold_border = workbook.add_format({'bold': True, 'border': 1, 'font_name': 'VAG Rounded Std Light'})
+        plain_border = workbook.add_format({'border': 1, 'font_name': 'VAG Rounded Std Light'})
+        header_border = workbook.add_format({'bold': True, 'border': 1, 'align': 'center', 'font_name': 'VAG Rounded Std Light'})
         
         # Summary sheet:
         summary_sheet = workbook.add_worksheet("Summary")
